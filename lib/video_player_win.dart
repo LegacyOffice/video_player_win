@@ -1,4 +1,3 @@
-export 'video_player_win_plugin.dart';
 import 'dart:async';
 import 'dart:developer';
 import 'dart:io';
@@ -81,8 +80,6 @@ class WinVideoPlayerValue {
     );
   }
 }
-
-
 
 class WinVideoPlayerController extends ValueNotifier<WinVideoPlayerValue> {
   late final bool _isBridgeMode; // true if used by 'video_player' package
