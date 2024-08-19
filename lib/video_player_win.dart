@@ -3,9 +3,9 @@ import 'dart:developer';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:path_provider/path_provider.dart';
+
 import 'package:video_player_platform_interface/video_player_platform_interface.dart';
-import 'package:http/http.dart' as http; // Import for network requests
+
 import 'video_player_win_platform_interface.dart';
 
 enum WinDataSourceType { asset, network, file, contentUri }
