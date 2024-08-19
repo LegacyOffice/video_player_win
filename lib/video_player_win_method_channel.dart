@@ -53,9 +53,9 @@ class MethodChannelVideoPlayerWin extends VideoPlayerWinPlatform {
 
   @override
   Future<WinVideoPlayerValue?> openVideo(
-      WinVideoPlayerController player, int textureId, String path) async {
+      WinVideoPlayerController player, int textureId, String path, {Map<String, String>? headers}) async {
     var arguments = await methodChannel
-        .invokeMethod<Map>('openVideo', {"textureId": -1, "path": path});
+        .invokeMethod<Map>('openVideo', {"textureId": -1, "path": path, "headers": headers});
     if (arguments == null) return null;
     if (arguments["result"] == false) return null;
 

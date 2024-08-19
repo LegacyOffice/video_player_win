@@ -32,7 +32,7 @@ class WindowsVideoPlayer extends VideoPlayerPlatform {
     if (dataSource.sourceType == DataSourceType.file) {
       var uri = Uri.parse(dataSource.uri!);
       var controller = WinVideoPlayerController.file(
-        File(uri.toFilePath()), 
+        File(uri.toFilePath()),
         isBridgeMode: true
       );
       await controller.initialize();
@@ -43,7 +43,7 @@ class WindowsVideoPlayer extends VideoPlayerPlatform {
       return null;
     } else if (dataSource.sourceType == DataSourceType.network) {
       var controller = WinVideoPlayerController.network(
-        dataSource.uri!, 
+        dataSource.uri!,
         headers: headers, // Pass headers as a named argument
         isBridgeMode: true
       );
