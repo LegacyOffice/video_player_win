@@ -1,8 +1,10 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/widgets.dart';
 import 'package:video_player_platform_interface/video_player_platform_interface.dart';
+import 'package:video_player_win/constants.dart';
 
 import 'video_player_win.dart';
 import 'video_player_win_platform_interface.dart';
@@ -53,8 +55,13 @@ class WindowsVideoPlayer extends VideoPlayerPlatform {
       }
       return null;
     } else if (dataSource.sourceType == DataSourceType.network) {
+      // Add headers if needed
+      final headers = {
+        "Authorization": "Basic ${base64Encode(utf8.encode("${Constants.basicUsername}:${Constants.basicPassword}"))}"
+      };
+
       var controller =
-          WinVideoPlayerController.network(dataSource.uri!, isBridgeMode: true);
+          WinVideoPlayerController.network(dataSource.uri!, headers, isBridgeMode: true);
       await controller.initialize();
       if (controller.textureId_ > 0) {
         mControllerMap[controller.textureId_] = controller;
