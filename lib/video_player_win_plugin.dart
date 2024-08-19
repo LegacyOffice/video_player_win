@@ -2,14 +2,15 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/widgets.dart';
-import 'package:video_player_platform_interface/video_player_platform_interface.dart';
+import 'package:video_player_platform_interface/video_player_platform_interface.dart' as vppi; // Rename the import
 
 import 'video_player_win.dart';
 import 'video_player_win_platform_interface.dart';
+import 'data_source.dart'; // Import the data_source.dart file
 
-class WindowsVideoPlayer extends VideoPlayerPlatform {
+class WindowsVideoPlayer extends vppi.VideoPlayerPlatform {
   static void registerWith() {
-    VideoPlayerPlatform.instance = WindowsVideoPlayer();
+    vppi.VideoPlayerPlatform.instance = WindowsVideoPlayer();
   }
 
   final mControllerMap = <int, WinVideoPlayerController>{};
@@ -68,16 +69,16 @@ class WindowsVideoPlayer extends VideoPlayerPlatform {
 
   /// Returns a Stream of [VideoEventType]s.
   @override
-  Stream<VideoEvent> videoEventsFor(int textureId) {
+  Stream<vppi.VideoEvent> videoEventsFor(int textureId) {
     var player =
         VideoPlayerWinPlatform.instance.getPlayerByTextureId(textureId);
     if (player != null) {
       return player.videoEventStream;
     } else {
       // send an intialized-failed event
-      var streamController = StreamController<VideoEvent>();
-      streamController.add(VideoEvent(
-          eventType: VideoEventType.initialized, duration: null, size: null));
+      var streamController = StreamController<vppi.VideoEvent>();
+      streamController.add(vppi.VideoEvent(
+          eventType: vppi.VideoEventType.initialized, duration: null, size: null));
       return streamController.stream;
     }
   }
