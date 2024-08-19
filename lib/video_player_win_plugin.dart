@@ -1,10 +1,8 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/widgets.dart';
 import 'package:video_player_platform_interface/video_player_platform_interface.dart';
-import 'package:video_player_win/constants.dart';
 
 import 'video_player_win.dart';
 import 'video_player_win_platform_interface.dart';
@@ -32,7 +30,7 @@ class WindowsVideoPlayer extends VideoPlayerPlatform {
 
   /// Creates an instance of a video player and returns its textureId.
   @override
-  Future<int?> create(DataSource dataSource) async {
+  Future<int?> create(DataSource dataSource, {Map<String, String>? headers}) async {
     if (dataSource.sourceType == DataSourceType.file) {
       // dataSource.uri is url encoded and has a file:// scheme.
       // But if the dataSource.uri original path contains non-ASCII characters,
@@ -55,11 +53,6 @@ class WindowsVideoPlayer extends VideoPlayerPlatform {
       }
       return null;
     } else if (dataSource.sourceType == DataSourceType.network) {
-      // Add headers if needed
-      final headers = {
-        "Authorization": "Basic ${base64Encode(utf8.encode("${Constants.basicUsername}:${Constants.basicPassword}"))}"
-      };
-
       var controller =
           WinVideoPlayerController.network(dataSource.uri!, headers, isBridgeMode: true);
       await controller.initialize();
