@@ -1,16 +1,13 @@
 import 'dart:async';
 import 'dart:io';
-
 import 'package:flutter/widgets.dart';
-import 'package:video_player_platform_interface/video_player_platform_interface.dart' as vppi; // Rename the import
-
+import 'package:video_player_platform_interface/video_player_platform_interface.dart';
 import 'video_player_win.dart';
 import 'video_player_win_platform_interface.dart';
-import 'data_source.dart'; // Import the data_source.dart file
 
-class WindowsVideoPlayer extends vppi.VideoPlayerPlatform {
+class WindowsVideoPlayer extends VideoPlayerPlatform {
   static void registerWith() {
-    vppi.VideoPlayerPlatform.instance = WindowsVideoPlayer();
+    VideoPlayerPlatform.instance = WindowsVideoPlayer();
   }
 
   final mControllerMap = <int, WinVideoPlayerController>{};
@@ -33,20 +30,11 @@ class WindowsVideoPlayer extends vppi.VideoPlayerPlatform {
   @override
   Future<int?> create(DataSource dataSource, {Map<String, String>? headers}) async {
     if (dataSource.sourceType == DataSourceType.file) {
-      // dataSource.uri is url encoded and has a file:// scheme.
-      // But if the dataSource.uri original path contains non-ASCII characters,
-      // it will cause the IMFSourceResolver API url decoding to fail and cause
-      // the app to crash.
-      //
-      // To avoid this, need to pass dataSource.uri to Uri.parse() and get
-      // the path from uri.toFilePath(). It removes the file:// scheme and
-      // url decodes the path.
-      //
-      // Without the file:// scheme, the IMFSourceResolver API treats the "%"
-      // character as a normal string instead of url decoding the path.
       var uri = Uri.parse(dataSource.uri!);
-      var controller = WinVideoPlayerController.file(File(uri.toFilePath()),
-          isBridgeMode: true);
+      var controller = WinVideoPlayerController.file(
+        File(uri.toFilePath()), 
+        isBridgeMode: true
+      );
       await controller.initialize();
       if (controller.textureId_ > 0) {
         mControllerMap[controller.textureId_] = controller;
@@ -54,13 +42,17 @@ class WindowsVideoPlayer extends vppi.VideoPlayerPlatform {
       }
       return null;
     } else if (dataSource.sourceType == DataSourceType.network) {
-      var controller =
-          WinVideoPlayerController.network(dataSource.uri!, headers, isBridgeMode: true);
+      var controller = WinVideoPlayerController.network(
+        dataSource.uri!, 
+        headers: headers, // Pass headers as a named argument
+        isBridgeMode: true
+      );
       await controller.initialize();
       if (controller.textureId_ > 0) {
         mControllerMap[controller.textureId_] = controller;
         return controller.textureId_;
       }
+      return null;
     } else {
       throw UnimplementedError(
           'create() has not been implemented for dataSource type [assets] and [contentUri] in Windows OS');
@@ -69,16 +61,15 @@ class WindowsVideoPlayer extends vppi.VideoPlayerPlatform {
 
   /// Returns a Stream of [VideoEventType]s.
   @override
-  Stream<vppi.VideoEvent> videoEventsFor(int textureId) {
+  Stream<VideoEvent> videoEventsFor(int textureId) {
     var player =
         VideoPlayerWinPlatform.instance.getPlayerByTextureId(textureId);
     if (player != null) {
       return player.videoEventStream;
     } else {
-      // send an intialized-failed event
-      var streamController = StreamController<vppi.VideoEvent>();
-      streamController.add(vppi.VideoEvent(
-          eventType: vppi.VideoEventType.initialized, duration: null, size: null));
+      var streamController = StreamController<VideoEvent>();
+      streamController.add(VideoEvent(
+          eventType: VideoEventType.initialized, duration: null, size: null));
       return streamController.stream;
     }
   }
@@ -150,6 +141,6 @@ class WindowsVideoPlayer extends vppi.VideoPlayerPlatform {
   /// Sets the audio mode to mix with other sources
   @override
   Future<void> setMixWithOthers(bool mixWithOthers) async {
-    // do nothing... not support in Windows OS
+    // do nothing... not supported in Windows OS
   }
 }

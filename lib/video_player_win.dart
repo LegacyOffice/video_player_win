@@ -1,13 +1,12 @@
 import 'dart:async';
 import 'dart:developer';
 import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:video_player_platform_interface/video_player_platform_interface.dart';
+import 'package:http/http.dart' as http; // Import for network requests
 import 'video_player_win_platform_interface.dart';
-import 'package:http/http.dart' as http;
 
 enum WinDataSourceType { asset, network, file, contentUri }
 
@@ -23,11 +22,10 @@ class WinVideoPlayerValue {
   final Duration position;
   final Size size;
   final double volume;
-
   final String? errorDescription;
-  bool get hasError => errorDescription != null;
+  final int textureId; // For internal use only
 
-  final int textureId; //for internal use only
+  bool get hasError => errorDescription != null;
 
   double get aspectRatio => size.isEmpty ? 1 : size.width / size.height;
 
@@ -36,9 +34,6 @@ class WinVideoPlayerValue {
     this.duration = Duration.zero,
     this.size = Size.zero,
     this.position = Duration.zero,
-    //Caption caption = Caption.none,
-    //Duration captionOffset = Duration.zero,
-    //List<DurationRange> buffered = const <DurationRange>[],
     this.isInitialized = false,
     this.isPlaying = false,
     this.isLooping = false,
@@ -46,7 +41,6 @@ class WinVideoPlayerValue {
     this.isCompleted = false,
     this.volume = 1.0,
     this.playbackSpeed = 1.0,
-    //int rotationCorrection = 0,
     this.errorDescription,
   });
 
@@ -86,10 +80,10 @@ class WinVideoPlayerController extends ValueNotifier<WinVideoPlayerValue> {
   int textureId_ = -1;
   final String dataSource;
   late final WinDataSourceType dataSourceType;
+  final Map<String, String>? headers; // Add headers field
   bool _isLooping = false;
-  final Map<String, String>? headers;
 
-  // used by flutter official "video_player" package
+  // Used by flutter official "video_player" package
   final _eventStreamController = StreamController<VideoEvent>();
 
   Stream<VideoEvent> get videoEventStream => _eventStreamController.stream;
@@ -99,8 +93,9 @@ class WinVideoPlayerController extends ValueNotifier<WinVideoPlayerValue> {
     return Duration(milliseconds: pos);
   }
 
-  WinVideoPlayerController._(this.dataSource, this.dataSourceType, this.headers,
-      {bool isBridgeMode = false})
+  // Updated constructor to accept headers
+  WinVideoPlayerController._(this.dataSource, this.dataSourceType, 
+      {this.headers, bool isBridgeMode = false})
       : super(WinVideoPlayerValue()) {
     if (dataSourceType == WinDataSourceType.contentUri) {
       throw UnsupportedError(
@@ -108,34 +103,37 @@ class WinVideoPlayerController extends ValueNotifier<WinVideoPlayerValue> {
     }
     if (dataSourceType == WinDataSourceType.asset) {
       throw UnsupportedError(
-          "VideoPlayerController.asset() not implement yet.");
+          "VideoPlayerController.asset() not implemented yet.");
     }
 
     _isBridgeMode = isBridgeMode;
-    //VideoPlayerWinPlatform.instance.registerPlayer(_textureId, this);
   }
+
   static final Finalizer<int> _finalizer = Finalizer((textureId) {
-    log("[video_player_win] gc free a player that didn't dispose() yet !!!!!");
+    log("[video_player_win] GC free a player that didn't dispose() yet!");
     VideoPlayerWinPlatform.instance.unregisterPlayer(textureId);
     VideoPlayerWinPlatform.instance.dispose(textureId);
   });
 
   WinVideoPlayerController.file(File file, {bool isBridgeMode = false})
-      : this._(file.path, WinDataSourceType.file, null, isBridgeMode: isBridgeMode);
-  WinVideoPlayerController.network(String dataSource, Map<String, String>? headers,
-      {bool isBridgeMode = false})
-      : this._(dataSource, WinDataSourceType.network, headers,
-            isBridgeMode: isBridgeMode);
+      : this._(file.path, WinDataSourceType.file, isBridgeMode: isBridgeMode);
+
+  WinVideoPlayerController.network(String dataSource, 
+      {Map<String, String>? headers, bool isBridgeMode = false})
+      : this._(dataSource, WinDataSourceType.network, 
+          headers: headers, isBridgeMode: isBridgeMode);
+
   WinVideoPlayerController.asset(String dataSource, {String? package})
-      : this._(dataSource, WinDataSourceType.asset, null);
+      : this._(dataSource, WinDataSourceType.asset);
+
   WinVideoPlayerController.contentUri(Uri contentUri)
-      : this._("", WinDataSourceType.contentUri, null);
+      : this._("", WinDataSourceType.contentUri);
 
   Timer? _positionTimer;
+
   void _cancelTrackingPosition() => _positionTimer?.cancel();
+
   void _startTrackingPosition() async {
-    // NOTE: 'video_player' package already auto get position periodically,
-    // so do nothing if _isBridgeMode = true
     if (_isBridgeMode) return;
 
     _positionTimer?.cancel();
@@ -149,28 +147,25 @@ class WinVideoPlayerController extends ValueNotifier<WinVideoPlayerValue> {
         return;
       }
 
-      //log("[video_player_win] ui: position timer tick");
-      await position; // set player's position to value.position
+      await position;
     });
   }
 
   void onPlaybackEvent_(int state) {
     switch (state) {
-      // MediaEventType in win32 api
       case 1: // MEBufferingStarted
-        log("[video_player_win] playback event: buffering start");
+        log("[video_player_win] Playback event: buffering start");
         value = value.copyWith(isInitialized: true, isBuffering: true);
         _eventStreamController
             .add(VideoEvent(eventType: VideoEventType.bufferingStart));
         break;
       case 2: // MEBufferingStopped
-        log("[video_player_win] playback event: buffering finish");
+        log("[video_player_win] Playback event: buffering finish");
         value = value.copyWith(isInitialized: true, isBuffering: false);
         _eventStreamController
             .add(VideoEvent(eventType: VideoEventType.bufferingEnd));
         break;
-      case 3: // MESessionStarted , occurs when user call play() or seekTo() in playing mode
-        //log("[video_player_win] playback event: playing");
+      case 3: // MESessionStarted
         value = value.copyWith(
             isInitialized: true, isPlaying: true, isCompleted: false);
         _startTrackingPosition();
@@ -178,21 +173,19 @@ class WinVideoPlayerController extends ValueNotifier<WinVideoPlayerValue> {
             .add(VideoEvent(eventType: VideoEventType.isPlayingStateUpdate));
         break;
       case 4: // MESessionPaused
-        //log("[video_player_win] playback event: paused");
         value = value.copyWith(isPlaying: false);
         _cancelTrackingPosition();
         _eventStreamController
             .add(VideoEvent(eventType: VideoEventType.isPlayingStateUpdate));
         break;
       case 5: // MESessionStopped
-        log("[video_player_win] playback event: stopped");
+        log("[video_player_win] Playback event: stopped");
         value = value.copyWith(isPlaying: false);
         _cancelTrackingPosition();
         _eventStreamController
             .add(VideoEvent(eventType: VideoEventType.isPlayingStateUpdate));
         break;
       case 6: // MESessionEnded
-        //log("[video_player_win] playback event: play ended");
         if (_isLooping) {
           seekTo(Duration.zero);
         } else {
@@ -203,7 +196,7 @@ class WinVideoPlayerController extends ValueNotifier<WinVideoPlayerValue> {
         }
         break;
       case 7: // MEError
-        log("[video_player_win] playback event: error");
+        log("[video_player_win] Playback event: error");
         value = value.copyWith(
             isInitialized: false,
             isPlaying: false,
@@ -217,12 +210,8 @@ class WinVideoPlayerController extends ValueNotifier<WinVideoPlayerValue> {
   }
 
   Future<void> initialize() async {
-    if (dataSourceType == WinDataSourceType.network) {
-      final response = await http.get(
-        Uri.parse(dataSource),
-        headers: headers,
-      );
-
+    if (dataSourceType == WinDataSourceType.network && headers != null) {
+      final response = await http.get(Uri.parse(dataSource), headers: headers);
       if (response.statusCode == 200) {
         final tempDir = await getTemporaryDirectory();
         final tempFile = File('${tempDir.path}/temp_video.mp4');
@@ -231,7 +220,7 @@ class WinVideoPlayerController extends ValueNotifier<WinVideoPlayerValue> {
         WinVideoPlayerValue? pv = await VideoPlayerWinPlatform.instance
             .openVideo(this, textureId_, tempFile.path);
         if (pv == null) {
-          log("[video_player_win] controller intialize (open video) failed");
+          log("[video_player_win] Controller initialize (open video) failed");
           value = value.copyWith(
               isInitialized: false, errorDescription: "open file failed");
           _eventStreamController.add(VideoEvent(
@@ -255,7 +244,7 @@ class WinVideoPlayerController extends ValueNotifier<WinVideoPlayerValue> {
       WinVideoPlayerValue? pv = await VideoPlayerWinPlatform.instance
           .openVideo(this, textureId_, dataSource);
       if (pv == null) {
-        log("[video_player_win] controller intialize (open video) failed");
+        log("[video_player_win] Controller initialize (open video) failed");
         value = value.copyWith(
             isInitialized: false, errorDescription: "open file failed");
         _eventStreamController.add(VideoEvent(
@@ -276,17 +265,17 @@ class WinVideoPlayerController extends ValueNotifier<WinVideoPlayerValue> {
   }
 
   Future<void> play() async {
-    if (!value.isInitialized) throw ArgumentError("video file not opened yet");
+    if (!value.isInitialized) throw ArgumentError("Video file not opened yet");
     await VideoPlayerWinPlatform.instance.play(textureId_);
   }
 
   Future<void> pause() async {
-    if (!value.isInitialized) throw ArgumentError("video file not opened yet");
+    if (!value.isInitialized) throw ArgumentError("Video file not opened yet");
     await VideoPlayerWinPlatform.instance.pause(textureId_);
   }
 
   Future<void> seekTo(Duration time) async {
-    if (!value.isInitialized) throw ArgumentError("video file not opened yet");
+    if (!value.isInitialized) throw ArgumentError("Video file not opened yet");
 
     await VideoPlayerWinPlatform.instance
         .seekTo(textureId_, time.inMilliseconds);
@@ -294,7 +283,7 @@ class WinVideoPlayerController extends ValueNotifier<WinVideoPlayerValue> {
   }
 
   Future<int> _getCurrentPosition() async {
-    if (!value.isInitialized) throw ArgumentError("video file not opened yet");
+    if (!value.isInitialized) throw ArgumentError("Video file not opened yet");
     if (value.isCompleted) return value.duration.inMilliseconds;
     int pos =
         await VideoPlayerWinPlatform.instance.getCurrentPosition(textureId_);
@@ -305,13 +294,13 @@ class WinVideoPlayerController extends ValueNotifier<WinVideoPlayerValue> {
   }
 
   Future<void> setPlaybackSpeed(double speed) async {
-    if (!value.isInitialized) throw ArgumentError("video file not opened yet");
+    if (!value.isInitialized) throw ArgumentError("Video file not opened yet");
     await VideoPlayerWinPlatform.instance.setPlaybackSpeed(textureId_, speed);
     value = value.copyWith(playbackSpeed: speed);
   }
 
   Future<void> setVolume(double volume) async {
-    if (!value.isInitialized) throw ArgumentError("video file not opened yet");
+    if (!value.isInitialized) throw ArgumentError("Video file not opened yet");
     await VideoPlayerWinPlatform.instance.setVolume(textureId_, volume);
     value = value.copyWith(volume: volume);
   }
