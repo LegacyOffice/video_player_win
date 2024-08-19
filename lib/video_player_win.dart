@@ -3,9 +3,7 @@ import 'dart:developer';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-
 import 'package:video_player_platform_interface/video_player_platform_interface.dart';
-
 import 'video_player_win_platform_interface.dart';
 
 enum WinDataSourceType { asset, network, file, contentUri }
@@ -80,10 +78,10 @@ class WinVideoPlayerController extends ValueNotifier<WinVideoPlayerValue> {
   int textureId_ = -1;
   final String dataSource;
   late final WinDataSourceType dataSourceType;
-  final Map<String, String>? headers; // Add headers field
+  final Map<String, String>? headers; // Field to store headers
   bool _isLooping = false;
 
-  // Used by flutter official "video_player" package
+  // Used by the flutter official "video_player" package
   final _eventStreamController = StreamController<VideoEvent>();
 
   Stream<VideoEvent> get videoEventStream => _eventStreamController.stream;
@@ -93,13 +91,13 @@ class WinVideoPlayerController extends ValueNotifier<WinVideoPlayerValue> {
     return Duration(milliseconds: pos);
   }
 
-  // Updated constructor to accept headers
+  // Constructor accepting headers
   WinVideoPlayerController._(this.dataSource, this.dataSourceType,
       {this.headers, bool isBridgeMode = false})
       : super(WinVideoPlayerValue()) {
     if (dataSourceType == WinDataSourceType.contentUri) {
       throw UnsupportedError(
-          "VideoPlayerController.contentUri() not supported in Windows");
+          "VideoPlayerController.contentUri() not supported on Windows");
     }
     if (dataSourceType == WinDataSourceType.asset) {
       throw UnsupportedError(
@@ -121,7 +119,7 @@ class WinVideoPlayerController extends ValueNotifier<WinVideoPlayerValue> {
   WinVideoPlayerController.network(String dataSource,
       {Map<String, String>? headers, bool isBridgeMode = false})
       : this._(dataSource, WinDataSourceType.network,
-          headers: headers, isBridgeMode: isBridgeMode);
+            headers: headers, isBridgeMode: isBridgeMode);
 
   WinVideoPlayerController.asset(String dataSource, {String? package})
       : this._(dataSource, WinDataSourceType.asset);
@@ -210,49 +208,34 @@ class WinVideoPlayerController extends ValueNotifier<WinVideoPlayerValue> {
   }
 
   Future<void> initialize() async {
+    WinVideoPlayerValue? pv;
     if (dataSourceType == WinDataSourceType.network && headers != null) {
-      WinVideoPlayerValue? pv = await VideoPlayerWinPlatform.instance
+      pv = await VideoPlayerWinPlatform.instance
           .openVideo(this, textureId_, dataSource, headers: headers);
-      if (pv == null) {
-        log("[video_player_win] Controller initialize (open video) failed");
-        value = value.copyWith(
-            isInitialized: false, errorDescription: "open file failed");
-        _eventStreamController.add(VideoEvent(
-            eventType: VideoEventType.initialized, duration: null, size: null));
-        return;
-      }
-      textureId_ = pv.textureId;
-      value = pv;
-      _finalizer.attach(this, textureId_, detach: this);
-
-      _eventStreamController.add(VideoEvent(
-        eventType: VideoEventType.initialized,
-        duration: pv.duration,
-        size: pv.size,
-      ));
-      log("flutter: video player file opened: id=$textureId_");
     } else {
-      WinVideoPlayerValue? pv = await VideoPlayerWinPlatform.instance
+      pv = await VideoPlayerWinPlatform.instance
           .openVideo(this, textureId_, dataSource);
-      if (pv == null) {
-        log("[video_player_win] Controller initialize (open video) failed");
-        value = value.copyWith(
-            isInitialized: false, errorDescription: "open file failed");
-        _eventStreamController.add(VideoEvent(
-            eventType: VideoEventType.initialized, duration: null, size: null));
-        return;
-      }
-      textureId_ = pv.textureId;
-      value = pv;
-      _finalizer.attach(this, textureId_, detach: this);
-
-      _eventStreamController.add(VideoEvent(
-        eventType: VideoEventType.initialized,
-        duration: pv.duration,
-        size: pv.size,
-      ));
-      log("flutter: video player file opened: id=$textureId_");
     }
+
+    if (pv == null) {
+      log("[video_player_win] Controller initialize (open video) failed");
+      value = value.copyWith(
+          isInitialized: false, errorDescription: "open file failed");
+      _eventStreamController.add(VideoEvent(
+          eventType: VideoEventType.initialized, duration: null, size: null));
+      return;
+    }
+
+    textureId_ = pv.textureId;
+    value = pv;
+    _finalizer.attach(this, textureId_, detach: this);
+
+    _eventStreamController.add(VideoEvent(
+      eventType: VideoEventType.initialized,
+      duration: pv.duration,
+      size: pv.size,
+    ));
+    log("flutter: video player file opened: id=$textureId_");
   }
 
   Future<void> play() async {
